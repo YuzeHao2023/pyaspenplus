@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyaspenplus"
+version = "0.1.0"
+description = "A Python API wrapper for Aspen Plus (COM backend + mock backend)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+  {name = "Your Name", email = "you@example.com"}
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: Microsoft :: Windows",
+]
+dependencies = [
+  # pywin32 is optional / only for Windows COM usage
+  "pywin32; platform_system == 'Windows'",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/YOUR_USERNAME/pyaspenplus"
+"Repository" = "https://github.com/YOUR_USERNAME/pyaspenplus"
+
+[tool.setuptools.packages.find]
+where = ["src"]
