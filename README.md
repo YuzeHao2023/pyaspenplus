@@ -52,4 +52,4 @@ See `docs/usage.md` and `docs/api.md` for usage and API reference.
 
 ## License
 
-MIT
+Apache-2.0 license
