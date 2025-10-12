@@ -25,7 +25,7 @@ Note: To use the COM backend you must be on Windows with Aspen Plus installed an
 
 ## Fast start
 
-Install；
+Install：
 
 ```bash
 git clone https://github.com/YuzeHao2023/pyaspenplus.git
@@ -41,7 +41,7 @@ pip3 install -r requirements.txt
 
 Test:
 
-```bash
+```python
 import pyaspenplus
 ```
 
