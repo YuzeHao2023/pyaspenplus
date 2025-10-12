@@ -8,7 +8,7 @@ pyaspenplus is a lightweight Python wrapper to interact with Aspen Plus via a pr
 - Open / save case files, run simulations
 - Read and write stream properties
 - Clean, documented API and examples
-- CI workflows for testing and publishing to PyPI
+- CI workflows for testing and publishing to PyPI.
 
 ## Installation
 
