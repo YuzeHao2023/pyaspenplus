@@ -23,6 +23,28 @@ pip3 install -e .
 ```
 Note: To use the COM backend you must be on Windows with Aspen Plus installed and pywin32 (or comtypes) available.
 
+## Fast start
+
+Install；
+
+```bash
+git clone https://github.com/YuzeHao2023/pyaspenplus.git
+cd pyaspenplus
+pip3 install -e .
+```
+
+Install requirements:
+
+```bash
+pip3 install -r requirements.txt
+```
+
+Test:
+
+```bash
+import pyaspenplus
+```
+
 ## Quick example
 
 ```python
@@ -37,15 +59,6 @@ with client.connect():
 ```
 
 Full examples in the `examples/` folder.
-
-## Publishing to PyPI
-
-This repository includes a GitHub Actions workflow that will publish to PyPI when you push a git tag that matches `v*` (for example `v0.1.0`). To enable publishing:
-
-1. Create an API token on PyPI.
-2. Add it to your GitHub repository secrets as `PYPI_API_TOKEN`.
-3. Tag a release and push: `git tag v0.1.0 && git push --tags`
-4. The workflow `.github/workflows/publish.yml` will build and upload to PyPI.
 
 ## Documentation
 
