@@ -12,13 +12,13 @@ pyaspenplus is a lightweight Python wrapper to interact with Aspen Plus via a pr
 
 ## Installation
 
-Install from PyPI (after publishing):
+Install from PyPI (available after publishing):
 ```bash
 pip install pyaspenplus
 ```
-Or install from git:
+Or install from git (available):
 ```bash
-git clone
+git clone https://github.com/YuzeHao2023/pyaspenplus.git
 pip3 install -e .
 ```
 Note: To use the COM backend you must be on Windows with Aspen Plus installed and pywin32 (or comtypes) available.
