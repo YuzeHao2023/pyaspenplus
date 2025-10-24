@@ -82,155 +82,142 @@ class MockBackend(BaseBackend):
         self._open = False
 
 class COMBackend(BaseBackend):
-    """A COM backend that uses pywin32 to control Aspen Plus (Windows only).
-    The actual method names/attributes depend on the Aspen COM API. This implementation
-    provides a template — you must adapt attribute/method names to your Aspen version.
     """
-    def __init__(self, progid: str = "AspenPlus.Application"):
+    A COM backend that delegates to pyaspenplus.api.com_simulation.Simulation for Aspen interactions.
+
+    Notes:
+    - This implementation expects src/pyaspenplus/api/com_simulation.py to provide a Simulation class
+      with methods: _open_flowsheet/_open? (we use InitFromArchive via Simulation constructor in aspen_api),
+      STRM_Temperature/STRM_Pressure/STRM_Flowrate, Run, STRM_Get_* and Block methods as applicable.
+    - This avoids duplicating low-level COM traversal code in client.
+    """
+    def __init__(self, progid: str = None, flowsheet_path: Optional[str] = None):
         if win32com is None:
             raise AspenPlusError("pywin32 (win32com) is required for COM backend.")
+        # defer import until needed (so package can be imported on non-Windows for tests)
+        from .api.com_simulation import Simulation  # local import
         self.progid = progid
-        self.app = None
-        self.doc = None
+        self.simulation: Optional[Simulation] = None
+        self.flowsheet_path = flowsheet_path
 
     def connect(self):
         utils.ensure_windows()
+        # instantiate the Simulation wrapper; it will attempt to dispatch the Aspen COM object
         try:
-            self.app = win32com.client.Dispatch(self.progid)
-            # The actual object model differs by Aspen versions; doc below is placeholder
-            self.doc = getattr(self.app, "ActiveDocument", None)
+            from .api.com_simulation import Simulation
+            # The Simulation constructor will call EnsureDispatch("Apwn.Document")
+            self.simulation = Simulation(VISIBILITY=False, SUPPRESS=True, flowsheet_path=self.flowsheet_path)
             return self
         except Exception as exc:
-            raise AspenPlusError(f"Failed to dispatch COM object '{self.progid}': {exc}")
+            raise AspenPlusError(f"Failed to create Aspen Simulation COM object: {exc}")
 
     def open_case(self, path: str):
-        if not os.path.exists(path):
-            raise AspenPlusError(f"Case file not found: {path}")
-        # The actual COM method for opening a case depends on Aspen's object model.
-        try:
-            # Placeholder call - adapt to real API of your Aspen installation
-            if hasattr(self.app, "OpenCase"):
-                self.app.OpenCase(path)
-            else:
-                # Try common attribute names - adapt as needed
-                if hasattr(self.app, "Open"):
-                    self.app.Open(path)
-                else:
-                    raise AspenPlusError("COM backend: Open method not found. Adjust code for your Aspen version.")
-        except Exception as exc:
-            raise AspenPlusError(f"Failed to open case via COM: {exc}")
+        if self.simulation is None:
+            raise AspenPlusError("COM backend not connected.")
+        # Ensure flowsheet opened
+        self.simulation._open_flowsheet(path)
 
     def run(self):
+        if self.simulation is None:
+            raise AspenPlusError("COM backend not connected.")
         try:
-            if hasattr(self.app, "Run"):
-                self.app.Run()
-            elif self.doc and hasattr(self.doc, "Run"):
-                self.doc.Run()
-            else:
-                raise AspenPlusError("COM backend: Run method not found. Adjust code for your Aspen version.")
+            self.simulation.Run()
         except Exception as exc:
             raise AspenPlusError(f"Failed to run simulation via COM: {exc}")
 
     def get_streams(self):
-        # Translate from Aspen COM object model to Stream dataclass.
-        # This is highly dependent on Aspen COM API. This function should be adapted.
-        streams = []
-        try:
-            # Example pseudo-code: iterate through material streams collection
-            streams_collection = getattr(self.doc, "MaterialStreams", None)
-            if streams_collection is None:
-                # try alternative attribute names
-                streams_collection = getattr(self.doc, "Streams", None)
-            if streams_collection is None:
-                raise AspenPlusError("COM backend: could not find streams collection on document.")
-
-            for i in range(1, streams_collection.Count + 1):
-                item = streams_collection.Item(i)
-                name = getattr(item, "Name", f"Stream_{i}")
-                flow = getattr(item, "TotalFlow", 0.0)
-                temp = getattr(item, "Temperature", None)
-                pres = getattr(item, "Pressure", None)
-                # composition mapping will depend on object model
+        if self.simulation is None:
+            raise AspenPlusError("COM backend not connected.")
+        # Build Stream list by reading a few known streams (best-effort). Users should customize per flowsheet.
+        res = []
+        # Example: attempt to read a few known stream names; if your flowsheet differs, modify this method.
+        for name in ("F1", "F2", "S1", "S2", "S3"):
+            try:
+                temp = None
+                pres = None
+                flow = None
+                try:
+                    temp = self.simulation.STRM_Get_Temperature(name)
+                except Exception:
+                    temp = None
+                try:
+                    pres = self.simulation.STRM_Get_Pressure(name)
+                except Exception:
+                    pres = None
+                # Try to read ethane as example composition; adapt as needed
                 comp = {}
-                # try to read composition if present
-                if hasattr(item, "Composition"):
-                    comp_obj = getattr(item, "Composition")
-                    # pseudo-code to iterate components
-                    try:
-                        for j in range(1, comp_obj.Count + 1):
-                            comp_item = comp_obj.Item(j)
-                            comp[comp_item.Name] = getattr(comp_item, "MoleFraction", 0.0)
-                    except Exception:
-                        comp = {}
-                streams.append(Stream(name=name, flow=flow, temperature=temp, pressure=pres, composition=comp))
-            return streams
-        except AspenPlusError:
-            raise
-        except Exception as exc:
-            raise AspenPlusError(f"Failed to read streams via COM backend: {exc}")
+                try:
+                    eth = self.simulation.STRM_Get_Outputs(name, "ETHANE")
+                    comp["ETHANE"] = eth
+                except Exception:
+                    comp = {}
+                # flow: sum of components if available (this is heuristic)
+                try:
+                    flow = sum(comp.values()) if comp else None
+                except Exception:
+                    flow = None
+                if temp is not None or pres is not None or flow is not None or comp:
+                    res.append(Stream(name=name, flow=flow or 0.0, temperature=temp, pressure=pres, composition=comp))
+            except Exception:
+                continue
+        return res
 
     def set_stream(self, name: str, stream: Stream):
-        # Adapt to Aspen COM API: find stream by name and set properties
+        if self.simulation is None:
+            raise AspenPlusError("COM backend not connected.")
         try:
-            streams_collection = getattr(self.doc, "MaterialStreams", None) or getattr(self.doc, "Streams", None)
-            if streams_collection is None:
-                raise AspenPlusError("COM backend: streams collection not found.")
-            # find stream by name
-            found = None
-            for i in range(1, streams_collection.Count + 1):
-                item = streams_collection.Item(i)
-                if getattr(item, "Name", "") == name:
-                    found = item
-                    break
-            if found is None:
-                raise AspenPlusError(f"Stream {name} not found.")
-            # set properties - actual attribute names will vary
-            if hasattr(found, "TotalFlow"):
-                found.TotalFlow = stream.flow
-            if stream.temperature is not None and hasattr(found, "Temperature"):
-                found.Temperature = stream.temperature
-            if stream.pressure is not None and hasattr(found, "Pressure"):
-                found.Pressure = stream.pressure
-            # composition setting: needs mapping to Aspen model
+            if stream.temperature is not None:
+                self.simulation.STRM_Temperature(name, float(stream.temperature))
+            if stream.pressure is not None:
+                self.simulation.STRM_Pressure(name, float(stream.pressure))
+            if stream.composition:
+                for comp_name, val in stream.composition.items():
+                    # direct set; ensure comp_name matches Aspen component id in your flowsheet
+                    try:
+                        self.simulation.STRM_Flowrate(name, comp_name, float(val))
+                    except Exception:
+                        # ignore missing comps
+                        pass
         except Exception as exc:
             raise AspenPlusError(f"Failed to set stream via COM: {exc}")
 
     def save(self, path: Optional[str] = None):
+        # Try to call Save/SaveAs on underlying Aspen document if exposed (not guaranteed)
         try:
-            if path:
-                if hasattr(self.doc, "SaveAs"):
-                    self.doc.SaveAs(path)
-                else:
-                    raise AspenPlusError("COM backend: SaveAs not available.")
+            if self.simulation and hasattr(self.simulation.AspenSimulation, "SaveAs") and path:
+                self.simulation.AspenSimulation.SaveAs(path)
+                return path
+            elif self.simulation and hasattr(self.simulation.AspenSimulation, "Save"):
+                self.simulation.AspenSimulation.Save()
+                return None
             else:
-                if hasattr(self.doc, "Save"):
-                    self.doc.Save()
-            return path
+                return path
         except Exception as exc:
             raise AspenPlusError(f"Failed to save case via COM: {exc}")
 
     def close(self):
         try:
-            if self.doc and hasattr(self.doc, "Close"):
-                self.doc.Close()
-        except Exception:
-            pass
+            if self.simulation and hasattr(self.simulation.AspenSimulation, "Close"):
+                try:
+                    self.simulation.AspenSimulation.Close()
+                except Exception:
+                    pass
         finally:
-            self.doc = None
-            self.app = None
+            self.simulation = None
 
 class AspenPlusClient:
-    def __init__(self, backend: str = "com", progid: Optional[str] = None):
+    def __init__(self, backend: str = "com", progid: Optional[str] = None, flowsheet_path: Optional[str] = None):
         """
         backend: 'com' or 'mock'
         progid: Optional COM ProgID for Aspen (only used for com backend)
+        flowsheet_path: optional default flowsheet file path for COM backend
         """
         self.backend_name = backend
         self.backend = None
         if backend == "mock":
             self.backend = MockBackend()
         elif backend == "com":
-            self.backend = COMBackend(progid=progid or "AspenPlus.Application")
+            self.backend = COMBackend(progid=progid, flowsheet_path=flowsheet_path)
         else:
             raise AspenPlusError("Unknown backend: choose 'com' or 'mock'")
 
