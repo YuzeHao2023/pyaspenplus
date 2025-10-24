@@ -7,8 +7,15 @@
 在真实环境（需要 Aspen Plus）:
 - 必须在 Windows 上并安装 Aspen Plus。
 - 安装 pywin32（pip install pywin32）。
-- 安装本库：pip install pyaspenplus
-
+- 安装本库：
+```bash
+# this install method will launched soon
+# pip install pyaspenplus
+# please use the following method
+git clone https://github.com/YuzeHao2023/pyaspenplus.git
+cd pyaspenplus
+pip3 install -e .
+```
 在开发/测试环境:
 - 可以直接使用 mock backend：AspenPlusClient(backend="mock")
 
