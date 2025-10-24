@@ -1,0 +1,3 @@
+ url=https://github.com/YuzeHao2023/pyaspenplus/blob/main/requirements.txt
+pywin32>=301
+numpy>=1.19
