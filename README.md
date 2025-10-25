@@ -19,6 +19,7 @@ pip install pyaspenplus
 Or install from git (available):
 ```bash
 git clone https://github.com/YuzeHao2023/pyaspenplus.git
+cd pyaspenplus
 pip3 install -e .
 ```
 Note: To use the COM backend you must be on Windows with Aspen Plus installed and pywin32 (or comtypes) available.
