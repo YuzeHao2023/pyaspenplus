@@ -1,3 +1,5 @@
+![](asserts/logo-pyaspenplus.png)
+
 # pyaspenplus
 
 pyaspenplus is a lightweight Python wrapper to interact with Aspen Plus via a programmatic API. It provides a simple client interface to open cases, run simulations, read and write stream values, and save results. The library is backend-agnostic and supports a COM backend (for real Aspen Plus on Windows) and a Mock backend (for development and testing).
